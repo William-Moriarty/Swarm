@@ -73,7 +73,7 @@
       var asteroidExplosionAudio = new Audio('audio/asteroidexplosion.wav');
       var bossExplosionAudio = new Audio('audio/bossexplosion.wav');
       var shutdownAudio = new Audio('audio/shutdown.wav');
-      var spacehumAudio = new Audio('audio/deepspace.wav');
+      //var spacehumAudio = new Audio('audio/deepspace.wav');
       var powerUpAudio = new Audio('audio/powerup.wav');
       var introAudio = new Audio('audio/intro.wav');
       var defeatAudio = new Audio('audio/gameover.wav');
@@ -1956,7 +1956,7 @@ function torpedoDrop(t){
         canvasContext.fillText("Level : " + currentLevel + "       Lives:  " + player.lives + "    Shield:  " + player.shield + "%     Hull Integrity: " + player.hull + 
             "%     Torpedos: " + torpedoCount + "        Points:  " + player.points, 15,15);
 
-        spacehumAudio.play();//plays a small space background hum
+        //spacehumAudio.play();//plays a small space background hum
         if (currentLevel < 10){
         gameMusicAudio.play();//plays the games main music
         }
@@ -2442,7 +2442,7 @@ function torpedoDrop(t){
         smallExplosionAudio.pause();
         reaperExplosionAudio.pause();
         shutdownAudio.pause();
-        spacehumAudio.pause();
+        //spacehumAudio.pause();
         bossMusicAudio.pause();
         gameMusicAudio.pause();
 
