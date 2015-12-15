@@ -1,0 +1,22 @@
+BEST PLAYED IN CHROME.
+
+OBJECTIVE - 
+
+Destroy waves of enemies with your weapons.
+Reach level 10.
+Destroy the mothership and save Earth.
+Acquire power ups that float on screen to aid you.
+
+
+CONTROLS - 
+ 
+W or UP ARROW    to move up
+A or LEFT ARROW  to move left
+S or DOWN ARROW  to move down
+D or RIGHT ARROW to move right
+
+SHIFT and D or
+SHIFT and RIGHT ARROW to thruster boost right
+
+SPACEBAR to fire laser
+E or F   to fire torpedo

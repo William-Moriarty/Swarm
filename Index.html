@@ -1,0 +1,2454 @@
+    <!DOCTYPE html>
+    <html lang='en'>
+      <head>
+        <title>SWARM!</title>
+        <meta charset='utf-8'>
+        <meta name='description' content=''>
+        <meta name='keywords' content=''>
+        <meta name='author' content=''>
+        <meta name='robots' content='all'>
+        <!-- <meta http-equiv='X-UA-Compatible' content='IE=edge'> -->
+        <link rel="stylesheet" type="text/css" href="style.css">
+
+     <script language="javascript" src="javascripts/libs.js" type="text/javascript"></script> 
+      <script language="javascript" src="javascripts/jquery.hotkeys.js" type="text/javascript"></script>
+      <script language="javascript" src="javascripts/key_status.js" type="text/javascript"></script>
+
+      </head>
+      <body>
+      <canvas id="gameCanvas" width ="800" height="650" class="background"></canvas>
+
+      <script>
+
+    //IMAGE REFERENCES
+    //http://www.google.ie/imgres?imgurl=https://i.ytimg.com/vi/8V6PXEAV-io/maxresdefault.jpg&imgrefurl=https://www.youtube.com/watch?v%3D8V6PXEAV-io&h=720&w=1280&tbnid=zRaL6gJBN2Zy2M:&docid=k7kxeMCTa00IHM&ei=UbJcVuegNMOLPqb_m4gG&tbm=isch&ved=0ahUKEwinjcb__rjJAhXDhQ8KHab_BmEQMwgwKBIwEg
+
+    //THe links below is where i got most of my ideas and inspiration from.
+
+    //http://www.html5rocks.com/en/tutorials/canvas/notearsgame/
+    //http://gamedev.stackexchange.com/questions/49251/javascript-create-a-new-bullet-instance-every-time-a-user-event-is-triggered
+      //NOTE
+      //Even though I personally dont like long variable names but I decided it would be best to describe them as concisely as possible for the sake of anyone else trying to get through the code.Most variables are what they say they are and are fairly obvious anyway but I will try comment what I can nevertheless.
+
+      //ALso, time out functions are used on update functions alot so that things dont disappear too quickly
+
+      //BOSS DEMO (MOTHERSHIP)
+      //If you want a quick demonstration of the boss set the current level variable (in the reset function on line 2402) to 10
+      //Then set the current player points (also in the reset function on line 2403) to above 5000 to stop the levels reversing when you gain points (since level 10 is suppose to be activated only if you have 5000 points or above)
+      //The bosses health can be configured at line 648
+      //Dont forget to reset these to their original values when done.
+     
+      var canvas;
+      var canvasContext;
+
+      canvas = document.getElementById('gameCanvas');
+      canvasContext = canvas.getContext('2d');
+      canvas.addEventListener('mousedown',handleMouseClick);
+
+      var CANVAS_WIDTH = canvas.width;
+      var CANVAS_HEIGHT = canvas.height;
+      
+      var fps = 30;
+
+      var gameStartTime = Date.now(); //records the time of the games start to handle events in the start up screen
+      var now = Date.now();
+
+      var currentLevel;//current level is set in the game reset function (line X). It usually starts at one but if you want to test a level change the variable to its number 
+      
+      //SCREEN STATUS'
+      var startingScreen = true;//begins with startscreen 
+      var controlScreen = false;
+      var shipSelectScreen = false;
+      var gameOverScreen = false;
+      var victoryScreen = false;
+      
+      //AUDIO (all wave files customised to have lowered decibles)
+      var laserAudio = new Audio('audio/laser.wav');
+      var torpedoAudio = new Audio('audio/torpedo.wav');
+      var shieldDownAudio = new Audio('audio/shieldsdown.wav');
+      var gameMusicAudio = new Audio('audio/gamemusic.wav');
+      var explosionAudio = new Audio('audio/playerexplosion.wav');
+      var smallExplosionAudio = new Audio('audio/miniexplosion.wav');
+      var reaperExplosionAudio = new Audio('audio/reaperexplosion.wav');
+      var asteroidExplosionAudio = new Audio('audio/asteroidexplosion.wav');
+      var bossExplosionAudio = new Audio('audio/bossexplosion.wav');
+      var shutdownAudio = new Audio('audio/shutdown.wav');
+      var spacehumAudio = new Audio('audio/deepspace.wav');
+      var powerUpAudio = new Audio('audio/powerup.wav');
+      var introAudio = new Audio('audio/intro.wav');
+      var defeatAudio = new Audio('audio/gameover.wav');
+      var victoryAudio = new Audio('audio/celebration.wav');
+      var bossMusicAudio = new Audio('audio/bossfight.wav');
+      var bossAudio = new Audio('audio/bossfight.wav');
+      var bounceAudio = new Audio('audio/bounce.wav');
+      var orbAudio = new Audio('audio/eneryorb.wav');
+      var laserbeamAudio = new Audio('audio/laserbeam.wav');
+      var growlAudio = new Audio('audio/lowgrowl.wav');
+      var thrusterAudio = new Audio('audio/thruster.wav');
+
+
+
+      var textColour = "#d6b1d4";//just in case I want to change the text colour of the start up screen
+
+      var swarmBanner = new Image();//the banner image used on the start screen
+      swarmBanner.src = "img/swarm.png";
+
+      var defeatBanner = new Image();//banner image used on game over screen
+      defeatBanner.src = "img/defeat.png";
+
+      var victoryBanner = new Image();//banner image used on victory screen (when the game is beat)
+      victoryBanner.src = "img/victory.png";
+
+      var shipPic = new Image();//player sprite
+      shipPic.src = "img/playerships/greenShip.png";
+
+      //SHIP SPRITES DISPLAYED IN SELECTION SCREEN
+      var blackShipPic = new Image();//black ship
+      blackShipPic.src = "img/playerships/blackShip2.png";
+      var blueShipPic = new Image();//blue ship
+      blueShipPic.src = "img/playerships/blueShip2.png";
+      var greenShipPic = new Image();//green ship
+      greenShipPic.src = "img/playerships/greenShip2.png";
+      var purpleShipPic = new Image();//purple ship
+      purpleShipPic.src = "img/playerships/purpleShip2.png";
+
+      var shipState = 0;
+
+      var motherShipPic = new Image();//boss sprite
+      motherShipPic.src = "img/enemyShips/motherShip.png";
+
+      var motherShipLowestPoint; //this variable will be used to calculate the lowest y point of the mothership. ITs so that the dronelings (the creatures the mothership spawn) always spawn between her head and bottom even while she moves.
+
+      var exhaustPic = new Image();//sprite for the ships exhaust when you speed boost
+      exhaustPic.src ="img/exhaust.png";
+
+      var shieldPic = new Image();//sprite for the ships shield
+      shieldPic.src = "img/shield.png";
+
+      var lifeTakenDelay = 1500;//a timer used to increase the margin of time in which a player can lose a life. This was necassary because multiple lives could be taken in a single collision and give a game over
+      var timeOfLastLifeTaken = -lifeTakenDelay;
+
+      var playerDmgDelay = 1001; //same situation as lifetakendelay but with incoming player damage. THIS HAS TO BE HIGHER THAN THE VALUE OF THE TIME-OUT FOR PLAYER RESET
+      var timeOfLastPlayerDmg = -playerDmgDelay;
+
+      var enemyDmgDelay = 150;//delay time in which an enemy can be damaged. 
+      var timeOfLastEnemyDmg = - enemyDmgDelay;
+
+      var msgDelay = 6000;
+      var timeOfLastMsg = now;
+  
+      var shieldActive = true;
+      var shieldDmgDelay = 1000; //this delay was necassary because hull could take damage at the same time a shield was lost
+      var timeOfLastShieldDmg = -shieldDmgDelay;
+
+      var shieldDropPic = new Image();
+       shieldDropPic.src = "img/shieldDrop.png";
+
+      var shieldDrops = [];
+
+      var hullDropPic = new Image();
+       hullDropPic.src = "img/hullDrop.png";
+
+      var hullDrops = [];
+
+      var torpedoDropPic = new Image();
+       torpedoDropPic.src = "img/torpedoDrop.png";
+
+      var torpedoDrops = [];
+
+      var dropState;//this variable will be used to randomize a number between one and 10 and depnding on the result give you either a shield, a hull repair, or a torpedo drop.
+      var powerDropDelay = 15000;//All "Drops" are the power ups and the delay is their spawn time calculated from the recorded previous time of their spawn.
+      var timeOfLastPowerDrop= gameStartTime - powerDropDelay;
+
+      var orbPic = new Image();//mothership's massive orb that is fired at the player every X seconds
+      orbPic.src = "img/orb.png";
+
+      var orbs = [];
+
+      var orbDelay =  10000;
+      var timeOfLastOrb = - orbDelay;
+
+      var dronelingPic = new Image();
+      dronelingPic.src = "img/enemyShips/droneling.png";
+
+      var dronelings = [];
+
+      var dronelingDelay =  2000;
+      var timeOfLastDroneling = - dronelingDelay;
+
+      var laserPic = new Image();
+      laserPic.src = "img/laserGreen.png";
+
+      var lasers = [];
+      var laserbeams = [];
+
+      var laserbeamDelay = 10000;
+      var timeOfLastLaserbeam = -laserbeamDelay;
+
+      var laserDelay = 200;//the rate at which the player can fire
+      var timeOfLastLaser = -laserDelay;
+
+      var torpedoPic = new Image();
+      torpedoPic.src = "img/torpedoGreen.png";
+
+      var torpedoCount = 3;
+
+      var torpedos = [];
+
+      var torpedoDelay = 400;
+      var timeOfLastTorpedo = -torpedoDelay;
+
+      var asteroidPic = new Image();
+      asteroidPic.src = "img/asteroidPic.png";
+
+      var asteroids = [];
+
+      var asteroidDelay = 10000;
+      var timeOfLastAstSpawn = - asteroidDelay;
+      var timeOfLastAstSpawn2 = - asteroidDelay;
+      var timeOfLastAstSpawn3 = - asteroidDelay;
+
+      var randomSpawnLocation = 0;//another value that will be used to generate a random number and depending on which spawn at a certain place. Used for asteroids primarily
+
+      var dronePodPic = new Image();
+      dronePodPic.src = "img/enemyShips/dronePod.png";
+
+      var dronePods = [];
+
+      //not the most ideal solution to handle timers for all the drone spawns but only one that would work in the given time
+      var dronePodDelay = 5000;
+      var timeOfLastPodSpawn = -dronePodDelay;
+      var timeOfLastPodSpawn2 = -dronePodDelay;
+      var timeOfLastPodSpawn3 = -dronePodDelay;
+      var timeOfLastPodSpawn4 = -dronePodDelay;
+      var timeOfLastPodSpawn5 = -dronePodDelay;
+      var timeOfLastPodSpawn6 = -dronePodDelay;
+
+      var reaperPic = new Image();
+      reaperPic.src = "img/enemyShips/reaper.png";
+
+      var reapers = [];
+
+      var reaperDelay = 12000;
+      var timeOfLastReaperSpawn = -reaperDelay;
+      var timeOfLastReaperSpawn2 = -reaperDelay;
+
+      //variables for the text in the start screen that have to be kept out of the draw loop
+      var floatingMsg = CANVAS_HEIGHT -35;
+      var floatingMsg2 = CANVAS_HEIGHT + 20;
+      var floatingMsgSpeed = 2;
+
+      //stores the values of how many enemies youve killed
+      var asteroidsDestroyed = 0;
+      var dronePodsDestroyed = 0;
+      var reapersDestroyed = 0;
+      var dronelingsDestroyed = 0;
+      var motherShipDestroyed = 0;
+      var dropsCollected = 0;
+
+      
+      //MAIN GAME LOOP
+      setInterval(function() {  
+        update();
+        draw();
+      },1000/fps);
+
+
+      function handleMouseClick(evt){
+      
+        //mouse events for when certain screens are active
+        if(startingScreen) {
+          startingScreen = false;
+          victoryScreen = false;
+          controlScreen = true;
+        }
+        else if(controlScreen){
+          startingScreen = false;
+          controlScreen = false;
+          shipSelectScreen = true;   
+        }
+        else if(gameOverScreen) {     
+         screenReset();
+        
+        }
+        else if(victoryScreen){         
+          screenReset();            
+        }
+    }  
+
+    //when the game is over this values are set for the return of the starting screen
+    function screenReset(){
+      defeatAudio.pause();
+      victoryAudio.pause();
+      victoryScreen = false;
+      gameOverScreen = false;
+      startingScreen = true;
+      floatingMsg = CANVAS_HEIGHT -35;
+      floatingMsg2 = CANVAS_HEIGHT + 20;
+      floatingMsgSpeed = 2;
+      timeOfLastMsg = now;//because the victory screen goes back to the start screeen the time of the message (that moves from the end to the center of the screen) in the startscreen is set to now. NOW is added to the delay of the message so that the message is displayed at the proper time after the startscreen becomes active
+    }   
+
+      //THE PLAYER BEGINS WITH 5 LIVES, 50% HULL, 50% SHIELD AND 3 TORPEDOS. POINTS SET TO ZERO TO BE LATER ACCUMULATED IN GAME BY KILLING ENEMIES
+   
+
+      var player = {
+              hull: 50,
+              shield: 50,
+              active: true,
+              lives: 5,
+              points:0,
+              x: 25,
+              y: CANVAS_HEIGHT/2 -10,
+              width: 90,
+              height: 70,
+
+              draw: function() {
+
+              player.shipSelection();
+
+               canvasContext.drawImage(shipPic,
+                                       this.x,
+                                       this.y,
+                                       this.width,
+                                       this.height);
+              }    
+      };
+
+    //MANAGES THE SELECTION OF PLAYER SHIPS ON THE SHIP SELECTION SCREEN
+    player.shipSelection = function(){
+    //if the player inputs a key to select a ship in the ship selection screen that key will set the shipState variable to a particle value.d Depending on the value a different ship image will be called in the player draw function
+    //i.e If the player picked the purple rain ship in the start screen by selecting the V key then that would change the shipState variable to 4 and call the purpleship as the player sprite.
+               if(shipState == 1){
+                shipPic.src = "img/playerships/blackShip.png";
+                laserPic.src = "img/laserRed.png";
+                torpedoPic.src = "img/torpedoRed.png";
+               } 
+               if(shipState == 2){
+                shipPic.src = "img/playerships/blueShip.png";
+                laserPic.src = "img/laserBlue.png";
+                torpedoPic.src = "img/torpedoBlue.png";
+               } 
+               if(shipState == 3){
+                shipPic.src = "img/playerships/greenShip.png";
+                laserPic.src = "img/laserGreen.png";
+                torpedoPic.src = "img/torpedoGreen.png";
+               } 
+               if(shipState == 4){
+                shipPic.src = "img/playerships/purpleShip.png";
+                laserPic.src = "img/laserPurple.png";
+                torpedoPic.src = "img/torpedoPurple.png";
+               } 
+    }
+
+    player.drawShield = function(){
+
+            canvasContext.drawImage(shieldPic,
+                                        player.x + 15,
+                                        player.y - 10,
+                                        player.width,
+                                        player.height + 20);  
+
+    }
+
+    player.drawShipExhaust = function(){
+
+            canvasContext.drawImage(exhaustPic,
+                                        player.x - 70,
+                                        player.y + 20,
+                                        148,
+                                        28);  
+
+    }
+
+    player.status = function(){
+
+       if (player.shield == 0 && player.hull <= 0){     
+          player.active = false;//if false player is no longer drawn in the draw function
+
+         if(now > (timeOfLastLifeTaken + lifeTakenDelay)){
+          player.lives --;//a players life cannot be taken within the margin of delay (set above). This prevented the player from losing multiple lives if he had two collisions at the same time
+          timeOfLastLifeTaken = now;//sets the last time the player died each time he dies
+          explosionAudio.play();
+          shutdownAudio.play();//shut down sound (like a failing computer)
+          }
+
+             if (player.lives <=0){
+                 setTimeout(function(){
+                  gameOverScreen = true;//time outs are set for effect
+                  //gameReset();
+                 },800);
+               }
+               
+               setTimeout(function(){
+              //resets back to beginning of level
+               playerReset();
+               //too lazy to put them into a bigger function.Game reset is not used here because it has resets on things that i dont want reset each time a player loses a life (rather than having a game over)
+               //these empty the arrays of said objects and reset other values each time a player dies
+               asteroidReset();
+               dronePodReset();
+               reaperReset();
+               shieldDropReset();
+               hullDropReset();
+               torpedoDropReset();
+               motherShipReset();
+               },1000);
+            }   
+        }
+
+
+    player.checkCollisionDmg = function(shieldDmg,hullDmg,pushback){
+    //my own function that takes in 3 parameters and is usually used each time a player has a collision
+    //first to bring in the shield dmg down by the collision of specific enemy
+    //second is to hull (if shield is not active)
+    //and third makes a "pushback" if the character crashes into the specific enemy, subtracting his x position on the screen
+      player.x -= pushback;
+
+    if(now > (timeOfLastPlayerDmg + playerDmgDelay)){//push back can only happen after the delay, pushback argument can be set to a high value so that it can ensure the player wont have time to collide with an enemy before the new delay expires
+        if(shieldActive == true){
+          player.checkShield(shieldDmg + Math.floor(Math.random() * (6)));}//added to randoms to add a small bit of random damage
+          player.checkHull(hullDmg + Math.floor(Math.random() * (11)));
+          player.status();
+       
+          timeOfLastPlayerDmg = now;
+      }
+      
+    }
+
+    //function for cacluting damage to the hull
+    //if the hull value is below zero the player dies
+    //hull can ONLY be damaged if shield is below zero too
+
+      player.checkHull = function(dmg){
+
+      if(player.shield == 0 && (now > (timeOfLastShieldDmg + shieldDmgDelay))){
+      player.hull= player.hull - dmg;
+    }
+
+    if(dmg < 0){
+      player.hull= player.hull - dmg;
+    }
+
+      if(player.hull < 0){//makes sure hull doesnt below zero
+            player.hull = 0;
+          }
+
+      if(player.hull > 100){//caps the hull value
+            player.hull = 100;//makes sure that the hull cant go above 100. Handy if a player gets multiple hull power ups
+      }   
+
+
+     } 
+
+     //does exactly the same thing as hull, but for the shield instead
+     //makes it so that value of shield cant go below zero or above hundred
+     player.checkShield = function(dmg){
+
+      player.shield = player.shield - dmg;
+
+      if(player.shield < 0){
+            player.shield = 0;
+            shieldActive = false;
+            shieldDownAudio.play();
+          }
+
+      else if(player.shield > 0){
+         shieldActive = true;
+
+         if(player.shield > 100){
+            player.shield = 100;
+        }  
+      }
+
+      timeOfLastShieldDmg = now; 
+     }   
+
+      //function for capping the amount of torpedos to 5
+       player.checkTorpedo = function(torp){
+
+      torpedoCount = torpedoCount + torp;
+         if(torpedoCount > 5){
+            torpedoCount = 5;
+        }  
+      }
+        
+      //function for reseting player values. Its used each time he's killed.
+      function playerReset(){
+        
+        player.active = true;
+        player.hull = 50;
+        player.shield = 50;
+        shieldActive = true;
+        player.x = 25;
+        player.y = CANVAS_HEIGHT/2 -10;
+
+      }   
+
+      //this function is called continiously in the update function to check the players points. Depending on how many points the player has a certain "level" value will be set. 
+      //the higher the points are the higher the level will be set to
+      //the minimum level is 1 and the maximum is 10
+      //other functions (mostly enemy functions) check the current levels (which are set in this function) to calculate their behaviour. Ergo, the higher the level, the more difficult they become, increasing in size, speed and health with short delays in spawn time.
+      //all enemies disappear at level 10 to make way for the motherShip who is the boss of the game.
+
+      function checkStage(){
+      if (player.points > 200 && player.points < 399){
+        currentLevel = 2;
+      }
+      if (player.points > 400 && player.points < 699){
+        currentLevel = 3;
+      }
+      if (player.points > 700 && player.points < 1199){
+        currentLevel = 4;
+      }
+      if (player.points > 1200 && player.points < 1699){
+        currentLevel = 5;
+      }
+      if (player.points > 1700 && player.points < 2299){
+        currentLevel = 6;
+      }
+      if (player.points > 2300 && player.points < 3099){
+        currentLevel = 7;
+      }
+      if (player.points > 3100 && player.points < 3999){
+        currentLevel = 8;
+      }
+      if (player.points > 4000 && player.points < 4999){
+        currentLevel = 9;
+      }
+     if (player.points > 5000){
+        currentLevel = 10;
+        if(currentLevel == 10){
+        motherShip.active = true;}
+      }
+
+      //maybe unneccasary but these two ifs are used to make sure the levels cant go above 10 or -1
+        if(currentLevel <= 0){
+            currentLevel = 1;
+        } 
+
+      if(currentLevel > 10){
+            currentLevel = 10;
+        }
+
+      }//END CHECK POINTS METHOD
+
+   
+
+    //the laser object which is fired by the player
+  function laser(l) {
+         l.active = true;
+
+         l.x = player.x + 77;
+         l.y = player.y + 32;
+         l.width= 10;
+         l.height = 3;
+         l.speed = 10;
+
+         l.inbounds = function(){//checks if the laser is in the bounds of the canvas
+
+          return l.x >= 0 && l.x <= CANVAS_WIDTH &&
+                 l.y >= 0 && l.y <= CANVAS_HEIGHT;
+         };
+
+        l.draw = function(){
+
+         canvasContext.drawImage(laserPic,
+                    l.x = l.x + l.speed,
+                    l.y,
+                    l.width,
+                    l.height
+                    );  
+        };
+
+        l.update = function(){//update function to see if the laser is active and inbounds
+
+          l.active && l.inbounds();
+        }
+        return l;
+      
+    } 
+
+    player.shootLaser = function(){
+
+      lasers.push(laser({}));//pushes a new object to an array, called when space bar is pressed
+      laserAudio.play();
+
+    };
+
+  //passes in the enemy in question and calculates how much damage he takes from a collision
+  function takesCollisionDmg(enemy){
+    if(now > timeOfLastPlayerDmg ){
+    var playerCollisionDmg = 20;// the damage an enemy will take after being hit by the player directly
+    enemy.hp -= playerCollisionDmg;}
+    return enemy.hp
+  }
+
+  //like the above function but used to calculate for laser damage taken by the enemy from the player
+  function takesLaserDmg(enemy){
+      var laserDmg = 5;
+      enemy.hp -= laserDmg;
+      return enemy.hp;
+    }
+
+
+    //torpedo object -does the same thing as the laser function
+     function torpedo(t) {
+         t.active = true;
+
+         t.x = player.x + 60;
+         t.y = player.y + 21;
+         t.width= 25;
+         t.height = 25;
+         t.speed = 10;
+
+
+         t.inbounds = function(){
+
+          return t.x >= 0 && t.x <= CANVAS_WIDTH &&
+                 t.y >= 0 && t.y <= CANVAS_HEIGHT;
+         };
+
+        t.draw = function(){
+
+         canvasContext.drawImage(torpedoPic,
+                    t.x = t.x + t.speed,
+                    t.y,
+                    t.width,
+                    t.height
+                    );  
+        };
+
+        t.update = function(){
+
+          t.active && t.inbounds();
+        }
+        return t;
+      
+    } 
+
+    //same as shoot laser function but decrements the amount of torpedos each time the function is called
+    //this function cant be called if the torpedo count is zero
+    player.shootTorpedo = function(){
+
+      torpedos.push(torpedo({}));
+      torpedoAudio.play();
+      timeOfLastTorpedo = now;
+      torpedoCount --;
+    };
+
+    //same as takes laser damage
+     function takesTorpedoDmg(enemy){
+      var torpedoDmg = 50;
+      enemy.hp -= torpedoDmg;
+      return enemy.hp;
+    }
+
+       //MOTHERSHIP
+       //the mothership is the boss of the game and spawns when the player reaches level 10
+
+      var motherShip = {
+              hp: 1000, //after some testing i decided this was the best hp value
+              active: false,//set to false until player gets to level 10
+              x: CANVAS_WIDTH + 200,
+              y: 100,
+              width: 226,
+              height:462,
+              speed: 5,
+
+              draw: function() {
+
+              //this gives the mothership a dramatic entrance
+              //shes spawned outside of the screen but x position is set to go left until it hits canvas width -250. It then stops moving left to resume its boss functions
+              if(this.x < CANVAS_WIDTH -250){
+                this.speed = 0;
+              }
+              //this makes sure the mothership follows the player but also makes sure the mothership does not leave the screen if the player goes too high or too low on the y axis himself
+              if(player.y < 420 && player.y > 238){
+              this.y = player.y - (this.height/2);             
+              }
+             
+
+               canvasContext.drawImage(motherShipPic,
+                                       this.x = this.x - this.speed,
+                                       this.y,
+                                       this.width,
+                                       this.height);
+              }    
+      };
+
+      //this function is called when the motherships hp is zero
+      //also starts the victory screen and finishes the game
+      motherShip.blowUp = function(){
+
+        motherShip.active = false;
+        player.points +=1500;
+        motherShipDestroyed ++;
+        bossExplosionAudio.play();
+        victoryScreen = true;
+         
+      }
+      //the motherships big weapon
+      //shoots a massive orb at the players y axis
+
+      motherShip.shootOrbs = function(){
+      if (now > (timeOfLastOrb + orbDelay)){
+      orbs.push(orb({}));
+      orbAudio.play();
+      timeOfLastOrb = now;}
+
+      orbs.forEach(function(o) {
+                setTimeout(function(){//time out functions are used on updates so that things dont disappear too quickly
+                o.update();
+              }),1000;
+              });
+         
+              orbs = orbs.filter(function(orb) {
+                return orb.active;
+              });
+      }
+
+      //the motherships red laser beam which looks flashy but doesnt do anything
+      //was originally supposed to damage the player but had difficulty and time contraints for calculating how it could be done
+      //for now its just passed off as some sort of search beam
+      motherShip.laserbeam = function(){
+
+      if(now > (timeOfLastLaserbeam + laserbeamDelay)){
+      laserbeams.push(laserbeam({}));
+      laserbeamAudio.play();
+      timeOfLastLaserbeam = now;}
+
+      laserbeams.forEach(function(lb){
+        setTimeout(function(){
+          lb.update();
+        }),1000;
+        if(now > (timeOfLastLaserbeam + 5000)){
+        lb.fade();//the fate function is the same as other objects blow up function
+        }
+      });
+
+       laserbeams = laserbeams.filter(function(lb){
+             return lb.active;
+         });
+
+      }
+
+      //much like the dronepods (the common enemy of the game), these things are spawned from the motherships position to swarm the enemy
+      motherShip.droneling = function(){
+      if (now > (timeOfLastDroneling + dronelingDelay)){
+      dronelings.push(droneling({}));
+      dronelings.push(droneling({}));
+      dronelings.push(droneling({}));
+      dronelings.push(droneling({}));
+      dronelings.push(droneling({}));
+      timeOfLastDroneling = now;}
+
+      dronelings.forEach(function(dr) {
+                setTimeout(function(){
+                dr.update();
+              }),1000;
+              });
+         
+              dronelings = dronelings.filter(function(dr) {
+                return dr.active;
+              });
+      }
+
+      function manageMothership(){
+
+            //calls the motherships functions if its active and current level is 10
+            //the managemothership is then called in the update function
+            //boss music is also set to start here
+            //normal music is paused because of boss music
+           if(motherShip.active && currentLevel == 10){
+              motherShip.shootOrbs();
+              motherShip.droneling();
+              motherShip.laserbeam();
+              bossMusicAudio.play();
+            }//END ACTIVE IF
+      }
+
+      //reset values for the mothership everytime the player is killed of the game restarts
+      //empties the arrays of associated objects
+      function motherShipReset(){
+
+              motherShip.hp = 1000;       
+              motherShip.x = CANVAS_WIDTH + 200;
+              motherShip.y= 100;
+              motherShip.width= 226;
+              motherShip.height =462;
+              motherShip.speed = 5;
+
+              if(currentLevel == 10){
+                motherShip.active = true;
+              }
+              else {
+                motherShip.active = false;
+              }
+
+        orbs = [];
+        dronelings = [];
+        lasers = [];
+      }
+
+
+      //the orb object which is used by the mothership as her big weapon
+      //spawns at the motherships x axis and the players y access(to make it dangerous for him)
+      //more or less same functionality as other objects with update, draw, blowup functions etc
+        function orb(o) {
+         o.active = true;
+
+         o.x = motherShip.x + 85;
+         o.y = player.y;
+         o.width= 150;
+         o.height = 150;
+         o.speed = 10;
+
+
+         o.inbounds = function(){
+
+          return o.x >= 0 && o.x <= CANVAS_WIDTH &&
+                 o.y >= 0 && o.y <= CANVAS_HEIGHT;
+         };
+
+        o.draw = function(){
+
+         canvasContext.drawImage(orbPic,
+                    o.x = o.x - o.speed,
+                    o.y,
+                    o.width,
+                    o.height
+                    );  
+        };
+
+        o.update = function(){
+
+          o.active && o.inbounds();
+        }
+
+        o.blowUp = function(){
+        this.active = false;
+        }
+        return o;
+      
+    } 
+
+    //the dronelings that spawn from the mothership
+    //fairly standard with the exception of how the dronelings are spawned on the y access
+    function droneling(d) {
+         d.active = true;
+         d.hp = 20;
+         d.x = motherShip.x + 85;
+        // d.y =  Math.floor(Math.random() * motherShip.height - 100) + motherShip.y;
+        //the lowest point of the mothership which had to be continously calculate because the mothership kept moving to chase the player
+         motherShipLowestPoint = motherShip.y + motherShip.height;
+         
+         d.y = randomIntFromInterval(motherShip.y, motherShipLowestPoint);
+         //randomizing the spawn point BETWEEN the motherships head and her ass
+         //uses a user made function thats passes the x and y position and returns a randomized number between them
+         d.width= 30;
+         d.height = 30;
+         d.speed = 5;
+
+
+         d.inbounds = function(){
+
+          return d.x >= 0 && d.x <= CANVAS_WIDTH &&
+                 d.y >= 0 && d.y <= CANVAS_HEIGHT;
+         };
+
+        d.draw = function(){
+
+         canvasContext.drawImage(dronelingPic,
+                    d.x = d.x - d.speed,
+                    d.y,
+                    d.width,
+                    d.height
+                    );  
+        };
+
+        d.update = function(){
+
+          d.active && d.inbounds();
+        }
+
+        d.blowUp = function(){
+        this.active = false;
+        player.points += 30;
+        dronelingsDestroyed ++;//keeps track of how many of htese are killed to be displayed at the end of the game or a game over
+        smallExplosionAudio.play();
+        }
+        return d;
+      
+    } 
+
+    //the motherships useless leaserbeam object, err, i mean "search laser"
+
+    function laserbeam(l){
+        var once = true;//disregard this, leaving it in for future developement
+
+         l.active = true;
+         
+         l.destY = 600;
+         l.destX = motherShip.x + 113;
+         l.width = 30;
+         l.height= 30;
+         l.speed = 5;
+
+
+        l.draw = function(){
+
+        l.x = motherShip.x + 113;
+        l.y = motherShip.y;
+
+        //took a while to figure this one out
+        //reminder that this is in a loop and positions are constantly updated
+        //the lasers start point will spawn at the motherships head and stay there
+        //it will follow the access 
+        var playerEsc = player.width + 30;
+
+        if(this.destX >= playerEsc){//makes sure the lasers endpoint wont go past canvas position x playerwidth (so he can escape it)
+        this.destX -=8;//this makes it go towards the zero x end of the canvas in the meantime
+        }
+        else if(this.destX <= playerEsc && this.destY >= 50){
+        this.destY -=8;//same deal with X but for y
+        }
+
+        canvasContext.beginPath();
+        canvasContext.moveTo(this.x,this.y);
+        canvasContext.lineTo(this.destX,this.destY);
+        canvasContext.strokeStyle="red";
+        canvasContext.lineWidth =5;
+        canvasContext.stroke();
+        once = false; //disregard this, leaving it in for future developement
+      
+
+      }
+
+        l.update = function(){
+
+          l.active;
+        }
+
+        l.fade = function(){
+        this.active = false;
+        }
+        return l;
+    }
+
+
+    // the drone pod enemy object. the  most common enemy in the game. Spawned between level 1-9
+    function dronePod(d){
+      d.active = true;
+      d.hp = 15;
+
+      d.x = CANVAS_WIDTH - 5;
+      d.width = 34;
+      d.height= 29;
+      d.dronePodSpawnY = Math.random() * (CANVAS_HEIGHT - 75);//spawns within a random point of the y access - 75
+      d.y = d.dronePodSpawnY; 
+      d.speed = 6;
+
+      //these ifs are used to change the variables of the drones to make them tougher as the games levels increase
+      if(currentLevel > 2){
+        d.width = 37;
+        d.height = 32;
+        d.hp = 20;
+      }
+
+      else if(currentLevel > 5){
+        d.width = 44;
+        d.height = 39;
+        d.hp = 25;
+      }
+
+       else if(currentLevel > 7){
+        d.width = 51;
+        d.height = 46;
+      }
+
+       d.inbounds = function(){
+
+          return d.x >= 0 && d.x <= CANVAS_WIDTH &&
+                 d.y >= 0 && d.y <= CANVAS_HEIGHT;
+         };
+
+    d.draw = function(){
+
+    canvasContext.drawImage(dronePodPic,
+              d.x = d.x - d.speed,
+              d.y,
+              d.width,
+              d.height
+              );
+    };
+
+    d.update = function(){
+
+    //these functions call as user made function (shown below) that increase the specified enemies speed(this time d(for dronepod) with each given level)
+    //the parameters passed are level number, speed, and enemy type respectively.
+    increaseEnemySpeedLvl(2,7,d);
+    increaseEnemySpeedLvl(5,8,d);
+    increaseEnemySpeedLvl(6,9,d);
+    increaseEnemySpeedLvl(9,10,d);
+
+    d.active && d.inbounds();
+
+    }
+
+    d.blowUp = function(){
+      player.points += 30;
+      this.active = false;
+      dronePodsDestroyed ++;//keeps count of amount killed for later display
+      smallExplosionAudio.play();
+    }
+
+    return d;     
+    };
+
+
+    function dronePodReset(){
+        dronePods = [];//simply empties array when function is called
+    }
+
+
+    //the function for the reaper object, another enemie, spawned between level 4-9, its tougher than the dronepod and introduced for extra challenge
+    //more or less same functionality as the dronepod object function
+    function reaper(r){
+      r.active = true;
+      r.hp = 45;
+      r.x = CANVAS_WIDTH - 5;
+      r.width = 75;
+      r.height= 90;
+      r.dronePodSpawnY = Math.random() * (CANVAS_HEIGHT - 75);
+      r.y = r.dronePodSpawnY;    
+      r.speed = 6;
+
+       r.inbounds = function(){
+
+          return r.x >= 0 && r.x <= CANVAS_WIDTH &&
+                 r.y >= 0 && r.y <= CANVAS_HEIGHT;
+         };
+
+
+    if(currentLevel > 4){
+        r.width = 80;
+        r.height = 110;
+        r.hp = 50;
+      }
+
+      if(currentLevel > 5){
+        r.width = 100;
+        r.height = 120;
+        r.hp = 55;
+      }
+
+       if(currentLevel > 7){
+        r.width = 120;
+        r.height = 135;
+        r.hp = 60;
+      }
+
+    r.draw = function(){
+
+    canvasContext.drawImage(reaperPic,
+              r.x = r.x - r.speed,
+              r.y,
+              r.width,
+              r.height
+              );
+    };
+
+
+    r.update = function(){
+    increaseEnemySpeedLvl(6,7,r);
+    increaseEnemySpeedLvl(8,8,r);
+
+     r.active && r.inbounds();
+    }
+
+    r.blowUp = function(){
+      if (currentLevel < 6){
+      player.points += 60;
+    }
+    else if(currentLevel < 8){
+      player.points += 100;
+    }
+    else{
+      player.points += 120;
+    }
+      reaperExplosionAudio.play();
+      this.active = false;
+      reapersDestroyed ++;   
+    }
+
+    return r;
+      
+    };
+
+
+    function reaperReset(){
+        reapers = [];
+    }
+
+    
+
+    //the function for the asteroid objects
+    //mostly introduce to the game to create an element of randomness
+    //spawn points are programmed to be random
+    //they grow larger with higher levels and vary in shape
+    //theyre suppose to be dodged
+    function asteroid(a){
+      a.active = true;
+      a.hp = 10;
+      a.width = 30;
+      a.height = 30;
+    
+      //the randomSpawnLocation var is set to a random number between one and ten in the update function. If its divisible by two the asteroids will spawn at the top of the canvas 
+     if (randomSpawnLocation % 2 == 0){
+      
+      a.y = 0;
+      a.speedY = - 1;
+
+       if(currentLevel > 2){//goes faster at level two and has more hp
+       a.speedY = - 2; 
+       a.hp = 15;
+    }
+
+       if(currentLevel > 3){//has more hp at level 4 and its width and hieght is increased with randomized factors
+         a.hp = 20;
+         a.width = Math.floor((Math.random() * 35) + 30);
+         a.height = Math.floor((Math.random() * 35) + 30);
+    }
+
+      if(currentLevel > 7){//more hp and speed at level 7 and its size is increased by a random factor yet again
+         a.speedY = - 3; 
+         a.hp = 25;
+         a.width = Math.floor((Math.random() * 40) + 35);
+         a.height = Math.floor((Math.random() * 40) + 35);
+    }
+      //admiteddly could have made the code better here reapting the speed and magic numbers several times but given how much time i spent on the project i couldnt go back to make them more efficient
+     }
+
+    //this else does the same as the above if but reversed.
+    //the asteroid will spawn at the bottom of the screen if the randomnumber var is NOT divsible by two
+    else{
+        a.y = CANVAS_HEIGHT;
+        a.speedY = 1;
+
+         if(currentLevel > 2){
+         a.speedY = 2; 
+         a.hp = 15;
+        }
+         if(currentLevel > 4){
+         a.hp = 20;
+         a.width = Math.floor((Math.random() * 40) + 35);
+         a.height = Math.floor((Math.random() * 40) + 35);
+    }
+
+        if(currentLevel > 7){
+         a.speedY = 3; 
+         a.hp = 25;
+         a.width = Math.floor((Math.random() * 45) + 40);
+         a.height = Math.floor((Math.random() * 45) + 40);
+    }
+    }
+
+
+
+
+      a.x = Math.random() * (CANVAS_WIDTH + 10);//sets the x spawnpoint to random
+    
+      a.speedX = Math.floor((Math.random() * 3) + 1);//sets its x velocity to two or three
+
+      //with different x and y spawns depending on random variables the asteroids could appear anywhere ON the canvas
+      //the rest of its functions are fairly standard.
+      
+
+    a.draw = function(){
+
+    canvasContext.drawImage(asteroidPic,
+              a.x = a.x - a.speedX,
+              a.y = a.y - a.speedY,
+              a.width,
+              a.height
+              );
+
+    //console.log(a.y);
+    };
+
+
+     a.inbounds = function(){
+
+          return a.x >= 50 && a.x <= CANVAS_WIDTH + 100 &&
+                 a.y >= 50 && a.y <= CANVAS_HEIGHT + 100;
+         };
+
+    a.update = function(){
+
+    if(currentLevel >= 3){
+    a.speedX = Math.floor((Math.random() * 4) + 1); //increase x speed to be between 1 and 3
+    }
+
+     a.active && a.inbounds();
+    }
+
+    a.blowUp = function(){
+      this.active = false;
+      player.points += 15;
+      asteroidsDestroyed ++;//keeps track of how many asteroids are destroyed to be displayed later
+      asteroidExplosionAudio.play();//audio for it blowing up
+    }
+
+    return a;
+
+    }
+
+    function asteroidReset(){
+        asteroids = [];
+      }
+
+    //this is the user made function used by dronepods and reapers to increase speed by level
+    //i just wanted a fairly easy and quick solution so thought this best
+    //passes in whatever level number, speed and enemy you want to give it to
+    function increaseEnemySpeedLvl(lvlNum,spd, enemy){
+      //if the current level is the same (or more but kinda redundant) than the one passed in then increase the speed by specified amount for that enemy
+      if(currentLevel >= lvlNum){
+        enemy.speed = spd;
+      }
+    }
+  
+
+      //POWER UPS
+      //the power up objects that the player collects to boost shields, health and torpedo count
+
+      function manageDrops(){
+        //every time a player takes a drop this function is called
+        //just increments points and dropsCollected (displayed at end of game)
+        player.points += 10;
+        dropsCollected ++;
+      }
+
+      //Originally I tried to use one object for the three drops but couldnt get the image to stay static to the one I wanted to so ended up making three different objects
+
+      //mostly same structure to other object functions with small differences
+      //only ONE type of power up is programmed to spawn each time
+      //programmed to spawn in different places like asteroids
+      //needed to use a different way of randomizing values to the asteroid to avoid asteroid and power up spawning in the same location
+      //does use the same randomSpawnLocation variable but checks what number it is
+      //(the randomSpwanLocation variable is between 1 and 8)
+      //depending on value spawn locations are randomized
+    function shieldDrop(s){
+      s.active = true;
+      s.width = 30;
+      s.height = 30;
+   
+    
+      //3:2:2:1 ratio - couldnt be bothered to calculate percentages
+
+
+      //3: chance to spawn at the east/right end of canvas
+    if ((randomSpawnLocation == 8) || (randomSpawnLocation == 5) || (randomSpawnLocation == 2)){
+      
+      s.y = Math.random() * (CANVAS_HEIGHT - 10);   
+      s.x = CANVAS_WIDTH;
+     
+      s.speedX = - Math.floor((Math.random() * 3) + 2);
+      s.speedY = 0;
+     }
+     //2: chance to spawn at north/top of cnavas 
+     if ((randomSpawnLocation == 7) || (randomSpawnLocation == 4)){
+      
+      s.y = 0;   
+      s.x = Math.random() * CANVAS_WIDTH;
+     
+      s.speedX = 0;
+      s.speedY = Math.floor((Math.random() * 3) + 2);
+     }
+     //2: chance to spawn at south/bottom of canvas
+     if ((randomSpawnLocation == 6) || (randomSpawnLocation == 3)){
+      
+      s.y = CANVAS_HEIGHT;   
+      s.x = Math.random() * CANVAS_WIDTH;
+     
+      s.speedX = 0;
+      s.speedY = - Math.floor((Math.random() * 3) + 2);
+     }
+     //1: chance to spawn at west/left side of screen (because this is where the player is i wanted a less of a chance for one to just land on them)
+    else if(randomSpawnLocation == 1) {
+
+      s.y = Math.random() * (CANVAS_HEIGHT - 10);   
+      s.x = 0;
+     
+      s.speedX = Math.floor((Math.random() * 3) + 2);
+      s.speedY = 0;
+    }
+
+    s.draw = function(){
+
+    canvasContext.drawImage(shieldDropPic,
+              s.x = s.x + s.speedX,
+              s.y = s.y + s.speedY,        
+              s.width,
+              s.height
+              );
+    };
+
+
+     s.inbounds = function(){
+
+          return s.x >= 50 && s.x <= CANVAS_WIDTH + 100 &&
+                 s.y >= 50 && s.y <= CANVAS_HEIGHT + 100;
+         };
+
+   
+    s.update = function(){
+     s.active && s.inbounds();
+    }
+
+    s.taken = function(){//same as blowUp function in other objects
+      this.active = false;
+      powerUpAudio.play();
+      manageDrops();
+    }
+
+    return s;
+
+    }
+
+
+    function shieldDropReset(){
+        shieldDrops = [];
+      }
+
+      //HULL DROP, to boost the players hull (which is essentially his health and will killed if the players hull reaches zero)
+      //SAME AS SHIELD DROP AND SAME FUNCTIONLITY.
+   function hullDrop(h){
+      h.active = true;
+      h.width = 30;
+      h.height = 30;
+   
+    if ((randomSpawnLocation == 8) || (randomSpawnLocation == 5) || (randomSpawnLocation == 2)){
+      
+      h.y = Math.random() * (CANVAS_HEIGHT - 10);   
+      h.x = CANVAS_WIDTH;
+     
+      h.speedX = - Math.floor((Math.random() * 3) + 2);
+      h.speedY = 0;
+     }
+
+     if ((randomSpawnLocation == 7) || (randomSpawnLocation == 4)){
+      
+      h.y = 0;   
+      h.x = Math.random() * CANVAS_WIDTH;
+     
+      h.speedX = 0;
+      h.speedY = Math.floor((Math.random() * 3) + 2);
+     }
+
+     if ((randomSpawnLocation == 6) || (randomSpawnLocation == 3)){
+      
+      h.y = CANVAS_HEIGHT;   
+      h.x = Math.random() * CANVAS_WIDTH;
+     
+      h.speedX = 0;
+      h.speedY = - Math.floor((Math.random() * 3) + 2);
+     }
+
+    else if(randomSpawnLocation == 1) {
+
+      h.y = Math.random() * (CANVAS_HEIGHT - 10);   
+      h.x = 0;
+     
+      h.speedX = Math.floor((Math.random() * 3) + 2);
+      h.speedY = 0;
+    }
+
+    h.draw = function(){
+
+    canvasContext.drawImage(hullDropPic,
+              h.x = h.x + h.speedX,
+              h.y = h.y + h.speedY,        
+              h.width,
+              h.height
+              );
+    };
+
+
+     h.inbounds = function(){
+
+          return h.x >= 50 && h.x <= CANVAS_WIDTH + 100 &&
+                 h.y >= 50 && h.y <= CANVAS_HEIGHT + 100;
+         };
+
+   
+    h.update = function(){
+     h.active && h.inbounds();
+    }
+
+    h.taken = function(){
+      this.active = false;
+      powerUpAudio.play();
+      manageDrops();
+    }
+
+    return h;
+
+    }
+
+
+    function hullDropReset(){
+        hullDrops = [];
+      }
+
+    //TORPEDO DROPS
+    //TO INCREASE THE TORPEDO COUNT OF A PLAYER
+    //cant go above five
+    //function has the same functionality as two above
+function torpedoDrop(t){
+      t.active = true;
+      t.width = 30;
+      t.height = 30;
+   
+    
+
+    if ((randomSpawnLocation == 8) || (randomSpawnLocation == 5) || (randomSpawnLocation == 2)){
+      
+      t.y = Math.random() * (CANVAS_HEIGHT - 10);   
+      t.x = CANVAS_WIDTH;
+     
+      t.speedX = - Math.floor((Math.random() * 3) + 2);
+      t.speedY = 0;
+     }
+
+     if ((randomSpawnLocation == 7) || (randomSpawnLocation == 4)){
+      
+      t.y = 0;   
+      t.x = Math.random() * CANVAS_WIDTH;
+     
+      t.speedX = 0;
+      t.speedY = Math.floor((Math.random() * 3) + 2);
+     }
+
+     if ((randomSpawnLocation == 6) || (randomSpawnLocation == 3)){
+      
+      t.y = CANVAS_HEIGHT;   
+      t.x = Math.random() * CANVAS_WIDTH;
+     
+      t.speedX = 0;
+      t.speedY = - Math.floor((Math.random() * 3) + 2);
+     }
+
+    else if(randomSpawnLocation == 1) {
+
+      t.y = Math.random() * (CANVAS_HEIGHT - 10);   
+      t.x = 0;
+     
+      t.speedX = Math.floor((Math.random() * 3) + 2);
+      t.speedY = 0;
+    }
+
+    t.draw = function(){
+
+    canvasContext.drawImage(torpedoDropPic,
+              t.x = t.x + t.speedX,
+              t.y = t.y + t.speedY,        
+              t.width,
+              t.height
+              );
+    };
+
+
+     t.inbounds = function(){
+
+          return t.x >= 50 && t.x <= CANVAS_WIDTH + 100 &&
+                 t.y >= 50 && t.y <= CANVAS_HEIGHT + 100;
+         };
+
+   
+    t.update = function(){
+     t.active && t.inbounds();
+    }
+
+    t.taken = function(){
+      this.active = false;
+      powerUpAudio.play();
+      manageDrops();
+    }
+
+    return t;
+
+    }
+
+
+    function torpedoDropReset(){
+        torpedoDrops = [];
+      }
+
+      //MANAGE FUNCTIONS
+      //these manage the enemies and power ups that appear on the screen
+      //depending on level more objects can be pushed to arrays and drawn on the screen
+      //essentially more enemies (and power ups) appear on screen as the levels progress
+      //the delay or speed at which enemies appear is also controlled here
+      //dronePods and reapers do not appear on screen past level 9 however (the boss appears and replaces them)
+
+
+
+      function manageDrones(){//spawns after each delay and if the level is below 10
+
+
+        if (currentLevel < 10){
+
+        if((now > (timeOfLastPodSpawn + dronePodDelay))){
+              dronePods.push(dronePod({}));//pushed to array
+              timeOfLastPodSpawn = now;  //reseting timer of first wave and so on
+             }   
+         
+        //addng a random number between two values ensure the waves dont come out at the same time
+        //more waves will come out as levels progress and they will come out faster due to reduced delay
+        if((now > (timeOfLastPodSpawn2 + (dronePodDelay + (Math.floor(Math.random() * 2000)) + 400))) && currentLevel >= 2){
+              dronePods.push(dronePod({}));
+              timeOfLastPodSpawn2 = timeOfLastPodSpawn;     
+        }
+
+        if((now > (timeOfLastPodSpawn3 + (dronePodDelay + (Math.floor(Math.random() * 2000)) + 600))) && currentLevel >= 3){
+              dronePods.push(dronePod({}));
+              timeOfLastPodSpawn3 = timeOfLastPodSpawn;     
+        }
+
+        if(currentLevel >= 4){
+              dronePodDelay = 4000;//delay decreases as levels increase
+              }
+
+        if((now > (timeOfLastPodSpawn4 + (dronePodDelay + (Math.floor(Math.random() * 2000)) + 800))) && currentLevel >= 5){
+              dronePods.push(dronePod({}));
+              timeOfLastPodSpawn4 = timeOfLastPodSpawn;     
+        }
+
+        if(currentLevel >= 6){
+              dronePodDelay = 3500;
+        }
+
+        if((now > (timeOfLastPodSpawn5 + (dronePodDelay + (Math.floor(Math.random() * 2000)) + 1000))) && currentLevel >= 7){
+              dronePods.push(dronePod({}));
+              dronePods.push(dronePod({}));
+              timeOfLastPodSpawn5 = timeOfLastPodSpawn;     
+        }
+
+        if(currentLevel >= 6){
+              dronePodDelay = 3000;
+        }
+
+        if(currentLevel >= 8){
+              dronePodDelay = 2500;
+        }
+
+        if((now > (timeOfLastPodSpawn6 + (dronePodDelay + (Math.floor(Math.random() * 2000)) + 1200))) && currentLevel >= 9){
+              dronePods.push(dronePod({}));
+              timeOfLastPodSpawn6 = timeOfLastPodSpawn;     
+        }
+
+              dronePods.forEach(function(d) {
+                setTimeout(function(){
+                d.update();
+              }),1000;
+              });
+         
+              dronePods = dronePods.filter(function(dronePod) {
+                return dronePod.active;//this uses the filter function on the array to make sure only active dronePods (which are active AND inbounds) are in the array and subsequently drawn to screen
+              });
+          }//END OF CHECK LEVEL 10
+     } 
+
+      //This manages the reapers who appear after level 4
+      //essentially same functionality as manage dronepods
+      function manageReapers(){
+
+      if(currentLevel >= 4 && currentLevel < 10){
+
+      if((now > (timeOfLastReaperSpawn + reaperDelay))){
+              reapers.push(reaper({}));//pushed to array
+              timeOfLastReaperSpawn = now;  //reseting timer of first wave and so on
+             }  
+
+      if (currentLevel >= 5){
+              reaperDelay = 10000;
+              }
+
+      if (currentLevel >= 6){
+              reaperDelay = 7000;
+              }
+
+      if((now > (timeOfLastReaperSpawn2 + (reaperDelay + (Math.floor(Math.random() * 2500)) + 1000))) && currentLevel >= 7){
+              reapers.push(reaper({}));
+              timeOfLastReaperSpawn2 = timeOfLastReaperSpawn;     
+        }
+
+      if (currentLevel >= 8){
+              reaperDelay = 5000;
+              }
+
+      if (currentLevel >= 9){
+              reaperDelay = 4000;
+              }
+             
+      reapers.forEach(function(r) {
+              setTimeout(function(){
+              r.update();
+              }),1000;
+              });
+
+      reapers = reapers.filter(function(rp) {
+              return rp.active;
+              });
+
+          }//END OF LEVEL CHECK IF
+      }
+
+      //This manages the asteroids
+      //same functionality as manageDronePods and manageReapers
+      function manageAsteroids(){
+
+      if(now > (timeOfLastAstSpawn + asteroidDelay)){
+              asteroids.push(asteroid({}));
+              timeOfLastAstSpawn = now;
+          }
+
+      if(currentLevel >= 3){
+              asteroidDelay = 10000;
+          }
+
+      if((now > (timeOfLastAstSpawn2 + (asteroidDelay + (Math.floor(Math.random() * 4000)) + 3000))) && currentLevel >= 5){
+              randomSpawnLocation = Math.floor(Math.random() * 9);
+              asteroids.push(asteroid({}));
+              timeOfLastAstSpawn2 = timeOfLastAstSpawn;
+          }
+
+        if(currentLevel >= 6){
+              asteroidDelay = 9000;
+          }
+
+        if((now > (timeOfLastAstSpawn3 + (asteroidDelay + (Math.floor(Math.random() * 4000)) + 2000))) && currentLevel >= 8){
+              randomSpawnLocation = Math.floor(Math.random() * 9);
+              asteroids.push(asteroid({}));
+              timeOfLastAstSpawn3 = timeOfLastAstSpawn;
+          }
+
+        if(currentLevel >= 9){
+              asteroidDelay = 8000;
+              }
+    
+            asteroids.forEach(function(a){
+            setTimeout(function(){
+            a.update();
+            }),1000;
+            });
+
+            asteroids = asteroids.filter(function(ast) {
+            return ast.active;
+            });            
+
+      }//END FUNCTION
+
+      //manages the power ups
+      //manages how often they appear on screen and WHICH ones appear on screen
+      //only one power up appears each delay
+      //delay decreases with each advancing level (design decision since the game gets harder player requires more help)
+
+      function managePowerDrops(){
+
+      if(now > (timeOfLastPowerDrop + powerDropDelay)){
+              
+                if(currentLevel >= 5){
+                  powerDropDelay = 14000;
+                }
+                if(currentLevel >= 6){
+                  powerDropDelay = 12000;
+                }
+                if(currentLevel >= 7){
+                  powerDropDelay = 10000;
+                }
+                if(currentLevel >= 8){
+                  powerDropDelay = 8000;
+                }
+                if(currentLevel >= 9){
+                  powerDropDelay = 6000;
+                }
+                if(currentLevel == 10){
+                  powerDropDelay = 3000;
+                }
+
+                //DROP STATE MANAGEMENT
+                //this manages which object is pushed out at each power drop interval
+                //dropState variable is another randomized variable between 1 and 8 whic is randomized with each update
+                //follows a 3:3:2 ratio (design decision)
+
+                    //if its either of these numbers a shield drop power up is pushed to the array etc
+                     if ((dropState == 8) || (dropState == 5) || (dropState == 1)){
+                          
+                          shieldDrops.push(shieldDrop({}));
+                          
+                      }//END IF 1
+
+                     if ((dropState == 7) || (dropState == 4) || (dropState == 2)){
+      
+                        hullDrops.push(hullDrop({}));          
+                      }//END IF 2
+
+                     if ((dropState == 6) || (dropState == 3)){
+                    
+                       torpedoDrops.push(torpedoDrop({}));                                         
+                  }//END IF 3
+
+                  timeOfLastPowerDrop = now;//resets the time of the last power drop to now
+             }//END OF TIME CHECK IF 
+
+              shieldDrops.forEach(function(sd){
+              setTimeout(function(){
+              sd.update();//again, a second to timeout an update to not make it dissappear instantly when its grabbed
+              }),1000;
+              });
+
+              shieldDrops = shieldDrops.filter(function(sd){
+              return sd.active;//another filter to filter only active ones on the array
+            });
+
+              hullDrops.forEach(function(hd){
+              setTimeout(function(){
+              hd.update();
+              }),1000;
+            });
+
+              hullDrops = hullDrops.filter(function(hd){
+              return hd.active;
+            });
+                     
+              torpedoDrops.forEach(function(td){
+              setTimeout(function(){
+              td.update();
+              }),1000;
+            });
+
+              torpedoDrops = torpedoDrops.filter(function(td){
+              return td.active;
+            });         
+      }
+
+      function randomIntFromInterval(min, max){
+        //a function that I was planning on using more than once but never did
+        //used to find a random point between the min and max
+        //used to find a random point between motherships head and ass
+        //uses floor to round off number
+        //found somewhere on stack overflow
+        return Math.floor(Math.random()*(max-min + 1) + min);
+      }
+      function gameStats(){
+        //FEEDBACK ON THE ENEMIES YOU KILLED AND POINTS ACCUMULATED TO BE SHOWN AT END OF GAME ON GAME OVER OR VICTORY SCREEN
+        var motherIsDestroyedMsg;
+
+        if (motherShipDestroyed > 0 && currentLevel == 10){
+          motherIsDestroyedMsg = " Like a Christmas Turkey";
+        }
+        else if (motherShipDestroyed <= 0 && currentLevel == 10){
+          motherIsDestroyedMsg = " More like she killed you...";
+        }
+        else if (currentLevel > 4 && currentLevel < 8){
+          motherIsDestroyedMsg = " Still abit to go...";
+        } 
+        else if (currentLevel > 7 && currentLevel < 10){
+          motherIsDestroyedMsg = " Almost ready to fight...";
+        }
+        else if (currentLevel < 5){
+          motherIsDestroyedMsg = " Not even close...";
+        }
+        canvasContext.font = "15px Arial";
+        canvasContext.fillText("MAXIMUM LEVEL : " + currentLevel, CANVAS_WIDTH/4+150,375);
+        canvasContext.fillText("TOTAL POINTS : " + player.points, CANVAS_WIDTH/4+150,400);
+        canvasContext.fillText("MOTHERSHIP KILLED? " + motherIsDestroyedMsg, CANVAS_WIDTH/4+150,425);
+          canvasContext.fillText("DRONELINGS KILLED: " + dronelingsDestroyed, CANVAS_WIDTH/4+150,450);
+          canvasContext.fillText("DRONEPODS KILLED: " + dronePodsDestroyed, CANVAS_WIDTH/4+150,475);
+          canvasContext.fillText("REAPERS KILLED: " + reapersDestroyed, CANVAS_WIDTH/4+150,500);
+          canvasContext.fillText("ASTEROIDS DESTROYED: " + asteroidsDestroyed, CANVAS_WIDTH/4+150,525);
+          canvasContext.fillText("POWER UPS COLLECTED: " + dropsCollected, CANVAS_WIDTH/4+150,550);      
+      }
+
+      function gameStart(){
+        
+        shipSelectScreen = false;
+        introAudio.pause();
+        console.log("VALUES ARE BEING RESET"); 
+        console.log("GAME HAS BEGUN : GODSPEED!");
+        gameReset();  
+      }
+
+
+      function draw() {
+
+        //DRAW FUNCTION WHICH DRAWS EVERYTHING TO SCREEN
+
+        //BUT FIRST CHECKS WHICH SCREEN IS TRUE AND DEPENDING ON WHICH CARRIES OUT ITS VARIOUS TASKS
+        //HAS A MOUSE HANDLER FUNCTION THAT SWITCHES BETWEEN SOME SCREENS AT THE TOP OF THE PROJECT
+        //sorry about all the magic numbers
+
+        if(startingScreen){
+          //the start screen for the beginning of the game
+          //appears instantly when game is launched
+          if ( floatingMsg < CANVAS_HEIGHT/2){//this is the message that appears on the bottom of the screen and stops when it reaches half the cnvas height
+            floatingMsgSpeed =0;
+          }
+          canvasContext.clearRect(0,0,CANVAS_WIDTH,CANVAS_HEIGHT);
+          victoryAudio.pause();
+          pauseMainGameSounds();//fucntion used to pause any sound that shouldnt be on this screen
+          bossExplosionAudio.pause();
+          canvasContext.font = "20px Arial";
+          canvasContext.fillStyle = "yellow";
+          canvasContext.fillText("THE SWARM HAS LEFT ITS HOME PLANET OF TAQIYYA,", 130,floatingMsg = floatingMsg - floatingMsgSpeed);
+          canvasContext.fillText("ITS FLEET HAS SET A COURSE FOR EARTH...", 175,floatingMsg2 = (floatingMsg2 - floatingMsgSpeed));//text with passed arguements that makes it move
+
+          //APPEAR AFTER A CERTAIN DELAY
+          if (now > (timeOfLastMsg + msgDelay)){//more delays
+          canvasContext.fillText("CAN YOU MUSTER YOUR COURAGE AND SAVE YOUR SHITTY PLANET?", 50,450);
+        }
+           if (now > (timeOfLastMsg + msgDelay + 2000)){
+           canvasContext.drawImage(swarmBanner,200, 200,450,80); //draw the banner
+           introAudio.play(); 
+        }
+
+        if (now > (timeOfLastMsg + (msgDelay + 3000))){
+          canvasContext.fillText("CLICK TO BEGIN", CANVAS_WIDTH/2 - 80,600);
+        }
+
+        }
+        else if(controlScreen){
+
+           pauseMainGameSounds();//fucntion used to pause any sound that shouldnt be on this screen
+           introAudio.play(); 
+          //displays screen that shows the games controls
+          //this comes AFTER the start screen
+          //becomes true when mouse is click when inside the starting screen
+   
+
+           canvasContext.clearRect(0,0,CANVAS_WIDTH,CANVAS_HEIGHT);
+
+          canvasContext.font = "40px Arial";
+          canvasContext.fillStyle = "yellow";
+          canvasContext.fillText("CONTROLS", CANVAS_WIDTH/2-85,200);
+          canvasContext.font = "20px Arial";
+          canvasContext.fillText("MOVE UP:                   W or UP Arrow", CANVAS_WIDTH/2-185,300);
+          canvasContext.fillText("MOVE DOWN:             S or DOWN Arrow", CANVAS_WIDTH/2-185,330);
+          canvasContext.fillText("MOVE LEFT:                A or LEFT Arrow", CANVAS_WIDTH/2-185,360);
+          canvasContext.fillText("MOVE RIGHT:             D or RIGHT Arrow", CANVAS_WIDTH/2-185,390);
+          canvasContext.fillText("BOOST RIGHT:           HOLD SHIFT and D or ", CANVAS_WIDTH/2-185,420);
+          canvasContext.fillText("                                     HOLD SHIFT and LEFT ARROW", CANVAS_WIDTH/2-185,450);
+          canvasContext.fillText("SHOOT LASER:          SPACE BAR", CANVAS_WIDTH/2-185,480);
+          canvasContext.fillText("SHOOT TORPEDO:    E or F", CANVAS_WIDTH/2-185,510);
+          canvasContext.fillText("CLICK TO CONTINUE", CANVAS_WIDTH/2 - 75,600);
+        }
+
+        else if(shipSelectScreen){
+
+          //displays screen that al;lows the player to select their ship
+          //this comes AFTER the control screen
+          //becomes true when mouse is click when inside the control screen
+          //choosing a ship starts the game
+          introAudio.play(); 
+          pauseMainGameSounds();
+          canvasContext.clearRect(0,0,CANVAS_WIDTH,CANVAS_HEIGHT);
+
+          canvasContext.drawImage(blackShipPic,135, 300,player.height,player.width);
+          canvasContext.drawImage(blueShipPic,285, 300,player.height,player.width);
+          canvasContext.drawImage(greenShipPic,455, 300,player.height,player.width);
+          canvasContext.drawImage(purpleShipPic,605, 300,player.height,player.width);
+          canvasContext.font = "40px Arial";
+          canvasContext.fillStyle = "yellow";
+          canvasContext.fillText("SELECT YOUR SHIP", CANVAS_WIDTH/4+ 25,200);
+          canvasContext.font = "15px Arial";
+          //BLACKBIRD
+          canvasContext.fillText("BLACKBIRD -", 125,420);
+          canvasContext.fillText("PRESS Z", 135,450);
+          //BLUE
+          canvasContext.fillText("TRUE BLUE -", 275,420);
+          canvasContext.fillText("PRESS X", 285,450);
+          //GREEN
+          canvasContext.fillText("MEAN GREEN -", 440,420);
+          canvasContext.fillText("PRESS C", 455,450);
+          //PURPLE
+          canvasContext.fillText("PURPLE RAIN -", 590,420);
+          canvasContext.fillText("PRESS V", 605,450);
+          
+          if(keydown.z){ 
+                console.log("You have chosen the Blackbird");
+                shipState = 1;
+                gameStart();
+          }
+          if(keydown.x){ 
+                console.log("You have chosen True Blue");
+                shipState = 2;
+                gameStart();
+          }
+          if(keydown.c){ 
+                console.log("You have chosen Mean Green");
+                shipState = 3;
+                gameStart();
+          }
+          if(keydown.v){ 
+                console.log("You have chosen Purple Rain");
+                shipState = 4;
+                gameStart();
+          }
+           //resets the players stats
+          
+        }
+
+        else if(victoryScreen){
+
+          //VICTORY SCREEN
+          //this is true when you defeat the mothership (last boss of the game)
+          //left mouse click while this screen is active returns you to start screen to begint eh game all over again
+          
+          canvasContext.clearRect(0,0,CANVAS_WIDTH,CANVAS_HEIGHT);
+          victoryAudio.play();//plays celebration audio because you beat the game
+          pauseMainGameSounds();//pauses game sounds that shouldnt be in this screen
+
+          canvasContext.drawImage(victoryBanner,200, 150,450,80); 
+          canvasContext.font = "20px Arial";
+          canvasContext.fillStyle = "yellow";
+          canvasContext.fillText("CONGRATULATIONS.", CANVAS_WIDTH/4+125,300);
+          canvasContext.fillText("YOU HAVE SAVED YOUR SHITTY PLANET. FOR NOW...", CANVAS_WIDTH/4 - 37,325);
+          //FEEDBACK ON THE ENEMIES YOU KILLED AND POINTS ACCUMULATED
+          gameStats();
+
+        }
+
+        else if (gameOverScreen){  
+
+          //THE GAME OVER SCREEN
+          //IS TRUE when your player runs out of lives
+          //CLICKING here returns you to the starting screen to try the game again
+
+          canvasContext.clearRect(0,0,CANVAS_WIDTH,CANVAS_HEIGHT);
+          defeatAudio.play();//plays sad piano music QQ
+          pauseMainGameSounds();
+
+          canvasContext.drawImage(defeatBanner,200, 150,450,80); 
+          canvasContext.font = "40px Arial";
+          canvasContext.fillStyle = "yellow";
+          canvasContext.fillText("GAME OVER", CANVAS_WIDTH/2 - 85,280);
+          canvasContext.font = "20px Arial";
+          canvasContext.fillText("YOU FAILED TO SAVE YOUR SHITTY PLANET...", CANVAS_WIDTH/4,330);
+        
+
+          //FEEDBACK ON THE ENEMIES YOU KILLED AND POINTS ACCUMULATED
+          gameStats();
+          canvasContext.font = "20px Arial";
+          canvasContext.fillText("CLICK TO TRY AGAIN", CANVAS_WIDTH/2 - 75,600);
+
+        }
+
+        else{
+
+        //******* THE GAME SCREEN **********
+        canvasContext.clearRect(0,0,CANVAS_WIDTH,CANVAS_HEIGHT);
+
+        introAudio.pause();
+        //Status of player - current level, health, points etc
+        canvasContext.font = "15px Arial"
+        canvasContext.fillStyle = "yellow";
+        canvasContext.fillText("Level : " + currentLevel + "       Lives:  " + player.lives + "    Shield:  " + player.shield + "%     Hull Integrity: " + player.hull + 
+            "%     Torpedos: " + torpedoCount + "        Points:  " + player.points, 15,15);
+
+        spacehumAudio.play();//plays a small space background hum
+        if (currentLevel < 10){
+        gameMusicAudio.play();//plays the games main music
+        }
+
+        if(player.shield > 0){//draws the players shield if his shield value is above 100
+        player.drawShield();
+        }
+       
+       if((keydown.shift && keydown.d) || (keydown.shift && keydown.right)) {
+                player.drawShipExhaust();//draws and exhaust if the above keys are held, they are used to increase speed during the game. Had to be called here rather than the update function for technical reasons
+              }
+
+        //DRAWS THE PLAYER IF HIS VALUE IS ACTIVE
+        if (player.active){
+        player.draw();
+        } 
+        //DRAWS THE MOTHERSHIP IF HER VALUE IS ACTIVE
+        if(motherShip.active){
+        motherShip.draw();
+        }
+
+        //FOR EACH ITEM IN EACH ARRAY DRAW IT
+        torpedos.forEach(function(torp){
+        torp.draw();
+        })
+
+        lasers.forEach(function(laser){
+        laser.draw();
+        })
+
+        asteroids.forEach(function(ast){
+        ast.draw();
+        })
+
+        dronePods.forEach(function(pod){  
+        pod.draw();
+        })
+
+        reapers.forEach(function(rp){  
+        rp.draw();
+        })
+
+        
+        shieldDrops.forEach(function(sdrop){
+        sdrop.draw();
+        })
+
+        hullDrops.forEach(function(hdrop){
+        hdrop.draw();
+        })
+
+        torpedoDrops.forEach(function(tdrop){
+        tdrop.draw();
+        })
+
+        orbs.forEach(function(orb){
+        orb.draw();
+        })
+
+        dronelings.forEach(function(dr){
+        dr.draw();
+        })
+
+        if(motherShip.active){
+        laserbeams.forEach(function(lb){
+        lb.draw();
+        })
+      }
+
+      }
+      }
+
+      //A simple yet elegant function that is used to calculate the position of the two objects that are passed as its parameters (also taking into account their size). If they occupy any of the same x or y space then a collision is fired.
+
+      function collision(u, o){
+
+      return u.x < o.x + o.width  && 
+             u.x + u.width > o.x  &&
+             u.y < o.y + o.height &&
+             u.y + u.height > o.y;
+      }
+
+      function checkCollision(){
+
+
+        //THIS KEEPS TRACK OF EACH COLLISION IN ITS OWN FUNCTION THAT IS CALLED IN THE UPDATE FUNCTION
+        //IM NOT GOING TO EXPLAIN EVERY ONE OF THEM
+        //I WILL EXPLAIN ONE OR TWO SINCE THEY ARE ESSENTIALLY ALL THE SAME
+
+          //TORPEDOS
+      torpedos.forEach(function(torp){//for each torpedo in the array (thats active)
+          dronePods.forEach(function(dronePod){//for each dronePod in the array (thats active)
+            //So for each active torpedo and dronePod do the following...
+             if(collision(torp, dronePod)){//using the collision function to determine if they share space
+              torp.active = false; // if they do then make the torpedo false
+              //dronePod.takesDamage();
+              if ((takesTorpedoDmg(dronePod)) <= 0){//and if the torpedos damage brings the dronepods health below zero..
+              dronePod.blowUp();//then blow it up...
+              console.log("dronePod DESTROYED");
+            }
+             } 
+          });
+      });
+
+      torpedos.forEach(function(torp){
+        asteroids.forEach(function(ast){
+
+          if(collision(torp, ast)){
+            torp.active = false;
+            if ((takesTorpedoDmg(ast)) <= 0){
+            ast.blowUp();
+            console.log("asteroid DESTROYED");  
+            }
+          }
+        });
+      });
+
+       torpedos.forEach(function(torp){
+        reapers.forEach(function(rp){
+
+          if(collision(torp, rp)){
+            torp.active = false;
+            if ((takesTorpedoDmg(rp)) <= 0){
+            rp.blowUp();
+            console.log("reaper DESTROYED");  
+            }
+          }
+        });
+      });
+
+        torpedos.forEach(function(torp){
+        dronelings.forEach(function(dr){
+
+          if(collision(torp, dr)){
+            torp.active = false;
+            if ((takesTorpedoDmg(dr)) <= 0){
+            dr.blowUp();
+            console.log("droneling DESTROYED");  
+            }
+          }
+        });
+      });
+
+
+           torpedos.forEach(function(torp){    
+          if(collision(torp, motherShip)){
+            torp.active = false;
+            if (motherShip.active){
+            if ((takesTorpedoDmg(motherShip)) <= 0){
+            motherShip.blowUp();    
+            console.log("motherShip DESTROYED");}
+          }
+          }
+      });
+
+
+      //LASERS
+      lasers.forEach(function(laser){
+          dronePods.forEach(function(dronePod){
+
+             if(collision(laser, dronePod)){
+              laser.active = false;
+              //dronePod.takesDamage();
+              if ((takesLaserDmg(dronePod)) <= 0){
+              dronePod.blowUp();
+              console.log("dronePod DESTROYED");
+            }
+             } 
+          });
+      });
+
+
+      lasers.forEach(function(laser){
+          reapers.forEach(function(rp){
+
+             if(collision(laser, rp)){
+              laser.active = false; 
+             
+              if ((takesLaserDmg(rp)) <= 0){
+              rp.blowUp();
+              console.log("reaper DESTROYED");
+            }
+             } 
+          });
+      });
+
+
+      lasers.forEach(function(laser){
+          dronelings.forEach(function(dr){
+
+             if(collision(laser, dr)){
+              laser.active = false; 
+             
+              if ((takesLaserDmg(dr)) <= 0){
+              dr.blowUp();
+              console.log("droneling DESTROYED");
+            }
+             } 
+          });
+      });
+
+      lasers.forEach(function(laser){
+             if(collision(laser, motherShip)){
+              laser.active = false;        
+            if (motherShip.active){
+            if ((takesLaserDmg(motherShip)) <= 0){
+            motherShip.blowUp();    
+            console.log("motherShip DESTROYED");}
+          }
+        }
+      });
+      
+
+
+      lasers.forEach(function(laser){
+        asteroids.forEach(function(ast){
+
+          if(collision(laser, ast)){
+            laser.active = false;
+            if ((takesLaserDmg(ast)) <= 0){
+            ast.blowUp();
+            console.log("asteroid DESTROYED");  
+            }
+          }
+        });
+      });
+
+
+  //PLAYER COLLISIONS
+       dronePods.forEach(function(dronePod){
+        if (collision(dronePod, player)){
+          
+        console.log("COLLISION WITH DRONE!");
+          dronePod.blowUp();
+          if(shieldActive == true){
+          player.checkShield(25 + Math.floor(Math.random() * (6)));} //uses the check shield function to reduce the shield by specified amount( plus a small random factor)
+          player.checkHull(40 + Math.floor(Math.random() * (11)));//same as check shield
+          player.status();//checks the players status to see if theyve health or shield below zero
+         }
+      });
+
+       asteroids.forEach(function(ast){
+        if (collision(ast, player)){
+
+          console.log("ASTEROID IMPACT!");
+          ast.blowUp();
+          if(shieldActive == true){
+          player.checkShield(20 + Math.floor(Math.random() * (6)));}
+          player.checkHull(40 + Math.floor(Math.random() * (11)));
+          player.status();
+        }
+       });
+
+       orbs.forEach(function(orb){
+        if (collision(orb, player)){
+
+          console.log("ORB IMPACT!");
+          orb.blowUp();
+          if(shieldActive == true){
+          player.checkShield(94 + Math.floor(Math.random() * (6)));}
+          player.checkHull(89 + Math.floor(Math.random() * (11)));
+          player.status();
+        }
+       });
+
+
+          reapers.forEach(function(rp){
+        if (collision(rp, player)){
+          growlAudio.play();
+          console.log("COLLISION WITH REAPER!");
+          player.checkCollisionDmg(40,60,20);
+          
+          if((takesCollisionDmg(rp)) <= 0){
+          rp.blowUp();
+          }
+          
+        }
+       });
+
+        if(collision(motherShip,player)){
+          console.log("COLLISION WITH MOTHERSHIP!");
+          player.checkCollisionDmg(80,90,300);
+          bounceAudio.play();
+          growlAudio.play();
+          
+          if((takesCollisionDmg(motherShip)) <= 0){
+          motherShip.blowUp();
+        }
+      }
+
+        dronelings.forEach(function(dl){
+        if (collision(dl, player)){
+
+          console.log("COLLISION WITH DRONELING!");
+          player.checkCollisionDmg(40,40,0);
+          if (now > (timeOfLastEnemyDmg + enemyDmgDelay)){
+          if((takesCollisionDmg(dl)) <= 0){       
+          dl.blowUp(); 
+          timeOfLastEnemyDmg = now;
+          }  
+          }   
+        }
+       });
+
+         laserbeams.forEach(function(lb){
+        
+          if ((player.x == lb.destX) && (player.x == lb.destY)){
+          console.log("COLLISION WITH LASERBEAM!");
+          //player.checkCollisionDmg(40,40,0);       
+          lb.fade();  //fade is essentially the same as blow up functions (makes them inactive)    
+        }
+       });
+
+     shieldDrops.forEach(function(sd){
+        if (collision(sd, player)){
+
+          console.log("AQCUIRED SHIELD BOOST!");
+          sd.taken();//taken is essentially the same as blow up  and fade functions (makes them inactive) 
+          player.checkShield( - 45 - Math.floor(Math.random() * (6)));}       
+       });
+
+
+     hullDrops.forEach(function(hd){
+        if (collision(hd, player)){
+
+          console.log("REPAIRS TO HULL!");
+          hd.taken();
+          player.checkHull( - 50 - Math.floor(Math.random() * (11)));   
+          } 
+       });
+
+     torpedoDrops.forEach(function(td){
+        if (collision(td, player)){
+
+          console.log("AQUIRED TORPEDOS!");
+          td.taken();
+          player.checkTorpedo(1 + Math.floor(Math.random() * (4)));
+          } 
+       });
+
+ } //END OF METHOD
+
+      //**UPDATE FUNCTION**
+
+      function update(){
+
+              now = Date.now();//constantly updates the time to be right now, used by other variables to reset the time of other functions
+              randomSpawnLocation = Math.floor(Math.random() * 9);//the random spawn location variable which is used for asteroids and power drops that is to be updated to a random number eveyr update
+              dropState = Math.floor(Math.random() * 9); //used to determine what powerup is drawn on screen
+             
+              //HOT KEYS USING PLUGIN FROM BELOW LINK
+              //https://github.com/tzuryby/jquery.hotkeys
+             if((keydown.e || keydown.f) && now > (timeOfLastTorpedo + torpedoDelay) && torpedoCount > 0)  { 
+              player.shootTorpedo();//shoots the torpedo as long as count is above 0
+              //console.log(timeOfLastTorpedo);      
+              }
+
+              if(keydown.space  && now > (timeOfLastLaser + laserDelay)){
+                player.shootLaser();
+                timeOfLastLaser = now;//DELAY USUALLY SET TO 200ms
+              }
+           
+              if(keydown.up || keydown.w){ 
+                player.y -= 7;
+              }
+            
+              if(keydown.left || keydown.a) {
+                player.x -= 7;
+                
+              }
+
+               if(keydown.right || keydown.d) {
+                player.x += 7;
+                
+              }
+              //USE THIS TO BOOST AND GO FASTER TO THE RIGHT
+              if((keydown.shift && keydown.d) || (keydown.shift && keydown.right)) {
+                player.x += 15;
+                thrusterAudio.play();
+              }
+
+               if(keydown.down || keydown.s) {
+                player.y += 7;
+             }
+
+             /*
+              if(keydown.r) {
+                motherShip.y -= 7;
+             }
+            //just used to test the mothership
+              if(keydown.q) {
+                motherShip.y += 7;
+             }*/
+             if(motherShip.hp < 999){
+              console.log(motherShip.hp);//so you can monitor her hp with console
+             }
+
+              Number.prototype.clamp = function(min, max) {
+              return Math.min(Math.max(this, min), max);
+              };
+              //A clamp function which keeps the player on screen
+              player.x = player.x.clamp(0, CANVAS_WIDTH - player.width);
+              player.y = player.y.clamp(0, CANVAS_HEIGHT - player.height);
+
+              //another clamp for mother ship
+              //doesnt override the mothership going offscreen if shes following the player (if he goes too high or low)
+              //resolved by making an if statement that only follows the player between a certain height
+              //desribed where the mothership var code was written
+              motherShip.y = motherShip.y.clamp(0, CANVAS_HEIGHT - motherShip.height);
+
+              //filters out torpedos and lasers by calling out their update functions and seeing their active
+              torpedos.forEach(function(torp){
+                torp.update();
+              });
+
+              torpedos = torpedos.filter(function(torp){
+                return torp.active;
+              });
+
+              lasers.forEach(function(laser){
+                laser.update();
+              });
+
+              lasers = lasers.filter(function(laser){
+                return laser.active;
+              });
+
+              //methods which were described above which manage the behaviour of enemies, their interaction with the player, and the levels of the game.
+              manageDrones();
+              manageReapers();
+              manageAsteroids();
+              managePowerDrops();
+              manageMothership();       
+              checkCollision();
+              checkStage();         
+    }
+
+     function gameReset(){
+                    //reset values when the game is finished or their is a game over
+                    //NOT when a player loses a life BUT when the GAME ITSELF actually ENDS
+                   player.lives = 5;
+                   torpedoCount = 3;
+
+                   //LEVEL MANAGEMENT
+                   currentLevel =1;           
+                   player.points =0;
+                   //set player points to the corresponding lvl if you dont want it constantly reseting
+                   //REMINDER - 2(200>399),3(400>699),4(700>1199),5(1200>1699),
+                   //6(1700>2299),7(2300>3099),8(3100>3999),9(4000>4999),10(>5000) 
+  
+                   dropsCollected = 0;
+                   asteroidsDestroyed = 0;
+                   dronePodsDestroyed = 0;
+                   reapersDestroyed = 0;
+                   dronelingsDestroyed = 0;
+                   motherShipDestroyed = 0;
+
+                   powerDropDelay = 15000;
+                   asteroidDelay = 10000;
+                   dronePodDelay = 5000;
+                   reaperDelay = 12000;
+                  //these functions are used when the player dies not when the game ends, hence why the above variables are not incorparated into them
+                   playerReset();
+                   asteroidReset();
+                   dronePodReset();
+                   shieldDropReset();
+                   torpedoDropReset();
+                   hullDropReset();
+                   reaperReset();
+                   motherShipReset();           
+      }
+
+      function pauseMainGameSounds(){
+        //function used to pause all the sounds made within the main game screen so that it can be used in screens where you dont want that sound playing. Every sound replays again automitcally when its suppose to so no need to worry about manually un-pausing.
+        laserAudio.pause();
+        laserbeamAudio.pause();
+        orbAudio.pause();
+        torpedoAudio.pause();
+        thrusterAudio.pause();
+        powerUpAudio.pause();
+        explosionAudio.pause();
+        asteroidExplosionAudio.pause();
+        smallExplosionAudio.pause();
+        reaperExplosionAudio.pause();
+        shutdownAudio.pause();
+        spacehumAudio.pause();
+        bossMusicAudio.pause();
+        gameMusicAudio.pause();
+
+      }
+    
+      
+      </script>
+      </body>
+    </html>
